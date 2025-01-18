@@ -34,3 +34,16 @@
         CME Group API: For commodities and ETF data.
         CurrencyLayer API: For live foreign exchange rates.
 
+# Future Enhancements
+    Multi-Language Support: Provide multilingual support for global users.
+    Notifications: Real-time notifications for significant market updates.
+    Mobile App: Create a mobile version of the dashboard for on-the-go analysis.
+
+# License
+    The MIT license is attached is this repository
+
+# Acknowledgements
+    CME Group -> API Key
+    Currency Layer -> API Key
+    FinnHub -> API Kwy
+    NYT -> API Key
