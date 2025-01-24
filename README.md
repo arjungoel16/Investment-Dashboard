@@ -1,6 +1,6 @@
 # Investment Dashboard
 
-    This project is a web application that provides users with live stock prices, foreign exchange rates, commodities data, and financial news. Users can manage a watchlist, explore global and US news, and analyze ETF and futures data. The app integrates with Bloomberg API, CME Group API, and CurrencyLayer API to fetch real-time data.
+    This project is a web application that provides users with live stock prices, foreign exchange rates, commodities data, and financial news. Users can manage a watchlist, explore global and US news, and analyze ETF and futures data. The app integrates with the Bloomberg API to fetch real-time data.
 
 # Features
 
@@ -29,10 +29,7 @@
         Requests: For making API calls to external services.
     Database:
       MongoDB: To store user credentials, watchlist data, and preferences.
-      APIs:
-        Bloomberg API: For live stock prices, indices, and financial news.
-        CME Group API: For commodities and ETF data.
-        CurrencyLayer API: For live foreign exchange rates.
+      APIs: Bloomberg API: For live stock prices, indices,  financial news, commodities and ETF dat, and live foreign exchange rates.
 
 # Future Enhancements
     Multi-Language Support: Provide multilingual support for global users.
@@ -43,7 +40,4 @@
     The MIT license is attached is this repository
 
 # Acknowledgements
-    CME Group -> API Key
-    Currency Layer -> API Key
-    FinnHub -> API Kwy
-    NYT -> API Key
+    Bloomberg API Key

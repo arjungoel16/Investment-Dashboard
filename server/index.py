@@ -4,6 +4,7 @@ from flask_bcrypt import Bcrypt
 from flask_jwt_extended import JWTManager
 from pymongo import MongoClient
 from routes.auth import auth_bp
+# import stocks.py
 from routes.stocks import stocks_bp
 from routes.user import user_bp
 import os

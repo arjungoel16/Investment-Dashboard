@@ -1,65 +1,79 @@
 from flask import Blueprint, jsonify
-import requests
-import os
 from dotenv import load_dotenv
+import os
+import blpapi
 
 # Load environment variables
 load_dotenv()
 
 commodities_bp = Blueprint('commodities', __name__)
 
-# CME Group API Configuration
-CME_API_BASE_URL = "https://api.cmegroup.com"
-CME_API_KEY = os.getenv("CME_API_KEY")  # Load your API key from the .env file
+# Bloomberg API Configuration
+BLOOMBERG_HOST = os.getenv("BLOOMBERG_API_HOST", "localhost")
+BLOOMBERG_PORT = int(os.getenv("BLOOMBERG_API_PORT", 8194))
 
-# Endpoint mappings for ETFs and Commodities
-ETF_ENDPOINT = f"{CME_API_BASE_URL}/etfs/v1"
-COMMODITY_ENDPOINT = f"{CME_API_BASE_URL}/futures/v1/quotes"
-
-# Mock data for development purposes
+# Define default commodities
 DEFAULT_COMMODITIES = [
-    {"name": "Gold", "symbol": "GC"},
-    {"name": "Silver", "symbol": "SI"},
-    {"name": "Copper", "symbol": "HG"},
-    {"name": "Crude Oil", "symbol": "CL"},
-    {"name": "Natural Gas", "symbol": "NG"},
+    {"name": "Gold", "symbol": "XAUUSD"},
+    {"name": "Silver", "symbol": "XAGUSD"},
+    {"name": "Copper", "symbol": "HG1"},
+    {"name": "Crude Oil", "symbol": "CL1"},
+    {"name": "Natural Gas", "symbol": "NG1"}
 ]
+
+
+def create_bloomberg_session():
+    """
+    Create and return a Bloomberg session for API communication.
+    """
+    session_options = blpapi.SessionOptions()
+    session_options.setServerHost(BLOOMBERG_HOST)
+    session_options.setServerPort(BLOOMBERG_PORT)
+
+    session = blpapi.Session(session_options)
+    if not session.start():
+        raise Exception("Failed to start Bloomberg session.")
+    if not session.openService("//blp/refdata"):
+        raise Exception("Failed to open Bloomberg reference data service.")
+    return session
 
 
 @commodities_bp.route('/commodities/live-prices', methods=['GET'])
 def get_live_prices():
     """
-    Fetch live ETF and commodity prices from the CME Group API.
+    Fetch live commodity prices from Bloomberg.
     """
     try:
-        # Fetch ETF data
-        etf_response = requests.get(
-            ETF_ENDPOINT,
-            headers={"Authorization": f"Bearer {CME_API_KEY}"}
-        )
-        etf_response.raise_for_status()
-        etf_data = etf_response.json()
+        session = create_bloomberg_session()
+        service = session.getService("//blp/refdata")
+        request = service.createRequest("ReferenceDataRequest")
 
-        # Fetch Commodity data
-        commodity_prices = []
+        # Add commodity symbols
         for commodity in DEFAULT_COMMODITIES:
-            response = requests.get(
-                f"{COMMODITY_ENDPOINT}?symbol={commodity['symbol']}",
-                headers={"Authorization": f"Bearer {CME_API_KEY}"}
-            )
-            response.raise_for_status()
-            data = response.json()
+            request.getElement("securities").appendValue(f"{commodity['symbol']} Comdty")
 
-            # Extract price from the API response
-            commodity_prices.append({
-                "name": commodity["name"],
-                "price": data["quotes"][0]["last"] if "quotes" in data and data["quotes"] else "N/A"
-            })
+        # Request last price field
+        request.getElement("fields").appendValue("PX_LAST")
 
-        return jsonify({
-            "etfs": etf_data.get("data", []),
-            "commodities": commodity_prices
-        }), 200
+        session.sendRequest(request)
 
-    except requests.exceptions.RequestException as e:
-        return jsonify({"error": "Failed to fetch data from CME Group API", "details": str(e)}), 500
+        # Process response
+        commodity_prices = []
+        while True:
+            event = session.nextEvent()
+            for msg in event:
+                if msg.messageType() == "ReferenceDataResponse":
+                    for security in msg.getElement("securityData").values():
+                        symbol = security.getElementAsString("security")
+                        price = security.getElement("fieldData").getElementAsFloat("PX_LAST")
+                        commodity_prices.append({
+                            "name": next((c['name'] for c in DEFAULT_COMMODITIES if c['symbol'] in symbol), symbol),
+                            "price": price
+                        })
+            if event.eventType() == blpapi.Event.RESPONSE:
+                break
+
+        return jsonify({"commodities": commodity_prices}), 200
+
+    except Exception as e:
+        return jsonify({"error": "Failed to fetch commodity prices", "details": str(e)}), 500

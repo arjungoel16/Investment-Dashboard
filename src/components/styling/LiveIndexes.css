@@ -1,0 +1,48 @@
+.live-indexes-container {
+  text-align: center;
+  padding: 15px;
+  background-color: #f9f9f9;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+  
+  h3 {
+    text-align: center;
+    margin-bottom: 15px;
+    color: #333;
+  }
+  
+  .live-section {
+    margin-bottom: 20px;
+  }
+  
+  .live-section h4 {
+    margin-bottom: 10px;
+    font-weight: bold;
+  }
+  
+  .horizontal-list {
+    list-style: none;
+    padding: 0;
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    flex-wrap: wrap; /* Ensure items wrap in smaller screens */
+  }
+  
+  .horizontal-list li {
+    font-size: 1.1rem;
+    transition: color 0.3s ease; /* Smooth color change */
+  }
+  
+  .horizontal-list li strong {
+    display: block;
+    color: #333;
+    font-weight: bold;
+  }
+  
+  .horizontal-list li:hover {
+    background: #f1f1f1;
+    transition: 0.3s ease;
+  }
+  

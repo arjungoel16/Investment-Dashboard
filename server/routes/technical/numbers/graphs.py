@@ -1,24 +1,39 @@
 from flask import Blueprint, request, jsonify
-import requests
 import os
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
+import blpapi
 
 # Load environment variables
 load_dotenv()
 
 graph_bp = Blueprint('graph', __name__)
 
-# CME API Configuration
-CME_API_URL = "https://api.cmegroup.com/v1/quotes"
-CME_API_KEY = os.getenv("CME_API_KEY")
+# Bloomberg API Configuration
+BLOOMBERG_HOST = os.getenv("BLOOMBERG_API_HOST", "localhost")
+BLOOMBERG_PORT = int(os.getenv("BLOOMBERG_API_PORT", 8194))
+
+
+def create_bloomberg_session():
+    """
+    Create and return a Bloomberg session for API communication.
+    """
+    session_options = blpapi.SessionOptions()
+    session_options.setServerHost(BLOOMBERG_HOST)
+    session_options.setServerPort(BLOOMBERG_PORT)
+
+    session = blpapi.Session(session_options)
+    if not session.start():
+        raise Exception("Failed to start Bloomberg session.")
+    if not session.openService("//blp/refdata"):
+        raise Exception("Failed to open Bloomberg reference data service.")
+    return session
 
 
 def calculate_date_range(range):
     """
     Calculate start and end dates based on the range.
     """
-    from datetime import datetime, timedelta
-
     today = datetime.today()
     if range == "1D":
         start_date = today - timedelta(days=1)
@@ -43,37 +58,41 @@ def calculate_date_range(range):
 @graph_bp.route('/stocks/graph-data', methods=['GET'])
 def get_graph_data():
     """
-    Fetch stock data from CME Group API for a specific ticker and date range.
+    Fetch historical stock data for graphing using Bloomberg API.
     """
     ticker = request.args.get('ticker')
-    range = request.args.get('range', '1M')  # Default to 1 month if no range is provided
+    range = request.args.get('range', '1D')
 
-    if not ticker:
-        return jsonify({"error": "Ticker symbol is required"}), 400
+    session = create_bloomberg_session()
+    service = session.getService("//blp/refdata")
+    request = service.createRequest("HistoricalDataRequest")
 
-    try:
-        # Calculate the date range based on the requested range (e.g., 1D, 5D, 1M)
-        start_date, end_date = calculate_date_range(range)
+    request.getElement("securities").appendValue(f"{ticker} US Equity")
+    fields = ["PX_LAST", "PX_HIGH", "PX_LOW", "PX_VOLUME", "BOLLINGER", "RSI"]
+    for field in fields:
+        request.getElement("fields").appendValue(field)
 
-        # Make the API request to CME Group
-        response = requests.get(
-            CME_API_URL,
-            params={
-                "symbols": ticker,
-                "start_date": start_date,  # Include calculated start date
-                "end_date": end_date,      # Include calculated end date
-                "apikey": CME_API_KEY
-            },
-        )
-        response.raise_for_status()
+    start_date, end_date = calculate_date_range(range)
+    request.set("startDate", start_date.replace("-", ""))
+    request.set("endDate", end_date.replace("-", ""))
 
-        # Parse the response
-        data = response.json()
-        price_data = [
-            entry["price"] for entry in data.get("data", {}).get("quotes", [])
-        ]
+    session.sendRequest(request)
+    data = []
+    while True:
+        event = session.nextEvent()
+        for msg in event:
+            if msg.messageType() == "HistoricalDataResponse":
+                for point in msg.getElement("securityData").getElement("fieldData").values():
+                    data.append({
+                        "date": point.getElementAsString("date"),
+                        "price": point.getElementAsFloat("PX_LAST"),
+                        "high": point.getElementAsFloat("PX_HIGH"),
+                        "low": point.getElementAsFloat("PX_LOW"),
+                        "volume": point.getElementAsFloat("PX_VOLUME"),
+                        "bollinger": point.getElementAsFloat("BOLLINGER"),
+                        "rsi": point.getElementAsFloat("RSI")
+                    })
+        if event.eventType() == blpapi.Event.RESPONSE:
+            break
 
-        return jsonify({"ticker": ticker, "data": price_data}), 200
-
-    except requests.exceptions.RequestException as e:
-        return jsonify({"error": "Failed to fetch data from CME Group API", "details": str(e)}), 500
+    return jsonify({"ticker": ticker, "data": data}), 200
